@@ -5,11 +5,11 @@ A lightweight C header for safe and efficient tensor data layout and type conver
 **Author**: Jiacheng.Du
 
 ## Features
-- 支持 ONNX (NCHW) 和 TFLite (NHWC) 张量布局转换
-- 支持多种数据类型：float32, int32, uint8, int64, int16, int8, float16
-- 提供内存安全检查（溢出、空指针、分配失败）
-- 所有 API 和类型使用 snake_case 命名规范
-- 纯 C99 实现，仅头文件，跨平台兼容
+- Supports conversion between ONNX (NCHW) and TFLite (NHWC) tensor layouts
+- Handles multiple data types: float32, int32, uint8, int64, int16, int8, float16
+- Provides memory safety checks (overflow, null pointer, allocation failure)
+- All API and types use snake_case naming convention
+- Pure C99, header-only, cross-platform
 
 ## Data Types
 ```c
@@ -97,25 +97,22 @@ conversion_result_t result = onnx_to_tflite_with_layout(
     onnx_data, dims, 4, TENSOR_FLOAT32, LAYOUT_NCHW, LAYOUT_NHWC);
 
 if (result.success) {
-    printf("转换成功！\n");
+    printf("Conversion successful!\n");
     print_tensor_info(&result.shape);
     // Use result.data ...
     free_conversion_result(&result);
 } else {
-    printf("转换失败: %s\n", result.error_msg);
+    printf("Conversion failed: %s\n", result.error_msg);
 }
 ```
 
 ## Safety Notes
-- 所有内存分配都会检查失败情况
-- 所有索引和大小计算都会检查溢出
-- 所有指针参数都会检查空指针
-- 使用 `free_conversion_result` 释放 `conversion_result_t` 中的内存
-- 调用者负责提供有效的输入数据和维度
+- All memory allocations are checked for failure
+- All index and size calculations are checked for overflow
+- All pointer arguments are checked for null
+- Use `free_conversion_result` to release memory in `conversion_result_t`
+- The caller is responsible for providing valid input data and dimensions
 
-## 重要变更
-- 已删除基础的 `onnx_to_tflite` 和 `tflite_to_onnx` 函数（仅进行内存拷贝）
-- 现在只提供带布局转换功能的 `*_with_layout` 版本，提供更完整的转换能力
 
 ## License
 
