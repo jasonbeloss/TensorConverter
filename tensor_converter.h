@@ -2,6 +2,7 @@
  * MIT License
  * 
  * Copyright (c) 2024 TensorConverter
+ * Author: Jiacheng.Du
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -116,35 +117,7 @@ static inline size_t calculate_total_elements(const int32_t* dims, size_t num_di
  */
 static inline bool validate_tensor_shape(const int32_t* dims, size_t num_dims);
 
-/**
- * Convert ONNX tensor format to TFLite format
- * ONNX uses row-major storage, TFLite also uses row-major storage
- * but may need to handle different data types and memory alignment
- * 
- * @param onnx_data ONNX tensor data pointer
- * @param dims Tensor dimension array
- * @param num_dims Number of dimensions
- * @param data_type Data type
- * @return conversion_result_t Conversion result
- */
-static inline conversion_result_t onnx_to_tflite(const void* onnx_data, 
-                                              const int32_t* dims, 
-                                              size_t num_dims, 
-                                              tensor_data_type_t data_type);
 
-/**
- * Convert TFLite tensor format to ONNX format
- * 
- * @param tflite_data TFLite tensor data pointer
- * @param dims Tensor dimension array
- * @param num_dims Number of dimensions
- * @param data_type Data type
- * @return conversion_result_t Conversion result
- */
-static inline conversion_result_t tflite_to_onnx(const void* tflite_data, 
-                                              const int32_t* dims, 
-                                              size_t num_dims, 
-                                              tensor_data_type_t data_type);
 
 /**
  * Free memory allocated in conversion result
@@ -891,167 +864,7 @@ static inline void free_conversion_result(conversion_result_t* result) {
     memset(result->error_msg, 0, sizeof(result->error_msg));
 }
 
-static inline conversion_result_t onnx_to_tflite(const void* onnx_data, 
-                               const int32_t* dims, 
-                               size_t num_dims, 
-                               tensor_data_type_t data_type) {
-    conversion_result_t result = {0};
-    
-    // Validate input parameters
-    if (!onnx_data || !dims || num_dims == 0) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_NULL_POINTER);
-        return result;
-    }
-    
-    if (!validate_tensor_shape(dims, num_dims)) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_INVALID_DIMS);
-        return result;
-    }
-    
-    size_t element_size = get_data_type_size(data_type);
-    if (element_size == 0) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_UNSUPPORTED_TYPE ": %d", data_type);
-        return result;
-    }
-    
-    size_t total_elements = calculate_total_elements(dims, num_dims);
-    if (total_elements == 0) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_INVALID_DIMS);
-        return result;
-    }
-    
-    // Check for overflow in total_bytes calculation
-    if (total_elements > SIZE_MAX / element_size) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_INVALID_DIMS ": size too large");
-        return result;
-    }
-    
-    size_t total_bytes = element_size * total_elements;
-    
-    // Allocate memory for TFLite format data
-    result.data = malloc(total_bytes);
-    if (!result.data) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_MEMORY_ALLOC ": %zu bytes", total_bytes);
-        return result;
-    }
-    
-    // Copy dimension information
-    result.shape.dims = (int32_t*)malloc(num_dims * sizeof(int32_t));
-    if (!result.shape.dims) {
-        free(result.data);
-        result.data = NULL;
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_MEMORY_ALLOC);
-        return result;
-    }
-    
-    memcpy(result.shape.dims, dims, num_dims * sizeof(int32_t));
-    result.shape.num_dims = num_dims;
-    result.shape.data_type = data_type;
-    result.shape.total_elements = total_elements;
-    result.data_size = total_bytes;
-    
-    // ONNX and TFLite both use row-major storage, copy data directly
-    if (!copy_tensor_data(onnx_data, result.data, element_size, total_elements)) {
-        free(result.data);
-        free(result.shape.dims);
-        result.data = NULL;
-        result.shape.dims = NULL;
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_DATA_COPY);
-        return result;
-    }
-    
-    result.success = true;
-    return result;
-}
 
-static inline conversion_result_t tflite_to_onnx(const void* tflite_data, 
-                                              const int32_t* dims, 
-                                              size_t num_dims, 
-                                              tensor_data_type_t data_type) {
-    conversion_result_t result = {0};
-    
-    // Validate input parameters
-    if (!tflite_data || !dims || num_dims == 0) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_NULL_POINTER);
-        return result;
-    }
-    
-    if (!validate_tensor_shape(dims, num_dims)) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_INVALID_DIMS);
-        return result;
-    }
-    
-    size_t element_size = get_data_type_size(data_type);
-    if (element_size == 0) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_UNSUPPORTED_TYPE ": %d", data_type);
-        return result;
-    }
-    
-    size_t total_elements = calculate_total_elements(dims, num_dims);
-    if (total_elements == 0) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_INVALID_DIMS);
-        return result;
-    }
-    
-    // Check for overflow in total_bytes calculation
-    if (total_elements > SIZE_MAX / element_size) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_INVALID_DIMS ": size too large");
-        return result;
-    }
-    
-    size_t total_bytes = element_size * total_elements;
-    
-    // Allocate memory for ONNX format data
-    result.data = malloc(total_bytes);
-    if (!result.data) {
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_MEMORY_ALLOC ": %zu bytes", total_bytes);
-        return result;
-    }
-    
-    // Copy dimension information
-    result.shape.dims = (int32_t*)malloc(num_dims * sizeof(int32_t));
-    if (!result.shape.dims) {
-        free(result.data);
-        result.data = NULL;
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_MEMORY_ALLOC);
-        return result;
-    }
-    
-    memcpy(result.shape.dims, dims, num_dims * sizeof(int32_t));
-    result.shape.num_dims = num_dims;
-    result.shape.data_type = data_type;
-    result.shape.total_elements = total_elements;
-    result.data_size = total_bytes;
-    
-    // TFLite and ONNX both use row-major storage, copy data directly
-    if (!copy_tensor_data(tflite_data, result.data, element_size, total_elements)) {
-        free(result.data);
-        free(result.shape.dims);
-        result.data = NULL;
-        result.shape.dims = NULL;
-        safe_snprintf(result.error_msg, sizeof(result.error_msg), 
-                ERROR_MSG_DATA_COPY);
-        return result;
-    }
-    
-    result.success = true;
-    return result;
-}
 
 #ifdef __cplusplus
 }
